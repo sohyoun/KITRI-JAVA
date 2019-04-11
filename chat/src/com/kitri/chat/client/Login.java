@@ -153,23 +153,21 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 		} else if(ob == paper.ok) {
 			paperSendProcess();
 		} else if(ob == paper.cancel) {
-			paper.setVisible(false);
-			paper.letter.setText("");
+			paperCloseProcess();
 		} else if(ob == paper.answer) {
 			paperAnswerProcess();
 		} else if(ob == chat.rename) {
-			rename.oldname.setText(myid);
-			renameProcess();
+			viewRename();
 		} else if(ob == rename.ok) {
 			renameSendProcess();
 		} else if(ob == rename.cancel) {
-			rename.setVisible(false);
-			rename.newname.setText("");
+			closeRename();
+			
 		} else if(ob == chat.exit) {
 			closeProcess();
 		} 
 	}
-	
+
 
 	@Override
 	public void valueChanged(ListSelectionEvent e) {
@@ -177,16 +175,22 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 		chat.whom.setText(selName);
 	}
 	
+	private void closeRename() {
+		rename.setVisible(false);
+		rename.oldname.setText("");
+	}
 
-	private void renameProcess() {
+	private void viewRename() {
 		rename.oldname.setText(myid);
 		rename.setVisible(true);
-	}
-	
+	}	
 	private void renameSendProcess() {
 //		400|변경할대화명
 		String newname = rename.newname.getText().trim();
-		rename.newname.setText("");
+		if(newname.isEmpty()) {
+			JOptionPane.showMessageDialog(chat, "대화명입력하세요", "대화명오류", JOptionPane.WARNING_MESSAGE);
+			return;
+		}
 		if(newname.length()<3) { // 대화명이 3글자이상이어야함.
 			JOptionPane.showMessageDialog(this, "대화명은 3자이상입니다.", "대화명오류", JOptionPane.WARNING_MESSAGE);
 			return;
@@ -194,8 +198,7 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 		myid = newname;
 		//기존에 있는 이름이면 있는이름이라고 오류 떠야함.
 		sendMessage(ChatConstance.CS_RENAME+"|"+newname);
-//		viewMessage(newname+"으로 대화명 변경");
-		rename.setVisible(false);
+		closeRename();
 	}
 	
 	
@@ -204,8 +207,10 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 //	3. paper 창 close (초기화)
 	private void paperProcess() {
 		//1.
-		String from = myid;
-		String to = chat.whom.getText();
+		String to = chat.list.getSelectedValue();
+		paper.from.setText(myid);
+		paper.to.setText(to);
+		paper.setVisible(true);
 		if(to.isEmpty()) {
 			JOptionPane.showMessageDialog(chat, "대상자를 선택하세요.","대상자오류",JOptionPane.ERROR_MESSAGE);
 			return;
@@ -213,11 +218,7 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 		if(to.equals(myid)) {
 			JOptionPane.showMessageDialog(chat, "자신에게 메세지를???","대상자오류",JOptionPane.INFORMATION_MESSAGE);
 			return;
-		}
-		paper.from.setText(myid);
-		paper.to.setText(to);
-		paper.setVisible(true);
-	
+		}	
 	}
 	
 	
@@ -225,23 +226,25 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 //		server에게 msg 전송
 		//paperProcess의 to와 msg 가져옴
 		String to = paper.to.getText();
-		String msg = paper.letter.getText();
-		sendMessage(ChatConstance.CS_PAPER+"|"+to+"|"+msg);
+		String msg = paper.letter.getText().replace("\n", "/n/");//여러줄 보낼수 있게 엔터를 이상한거로 바꿈
+		sendMessage(ChatConstance.CS_PAPER+"|"+to+"|"+msg);//서버에 보냄
 		viewMessage(to+"에게 메세지 보냄 : "+msg);
 //		paper 창 close
-		paper.setVisible(false);
+		paperCloseProcess();
 		
 	}
 	
 	private void paperAnswerProcess() {
-		String to = paper.from.getText();
-		String from = paper.from.getText();
-//		String amsg = "------------답장---------------\n";
-//		paper.letter.append(amsg);
-		String msg = paper.letter.getText();
-		sendMessage(ChatConstance.CS_PAPER+"|"+to+"|"+msg);
-		viewMessage(to+"에게 메세지 보냄 : "+msg);
-//		paper.card.show(paper.cardp, "ok");
+		paper.to.setText(paper.from.getText());
+		paper.from.setText(myid);
+		paper.letter.append("\n\n------------답장---------------\n");
+		paper.card.show(paper.cardp, "ok");
+	}
+	
+	private void paperCloseProcess() {
+		paper.to.setText("");
+		paper.from.setText("");
+		paper.letter.setText("");
 		paper.setVisible(false);	
 	}
 
@@ -341,7 +344,7 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 				System.out.println("서버가 보낸 메세지 : "+msg);//protocol|메세지형식...
 				StringTokenizer st = new StringTokenizer(msg,"|");//tokenizer로 protocol 뽑아냄
 				int protocol = Integer.parseInt(st.nextToken());
-				switch(protocol) {
+				switch(protocol) {//각자의 창
 					case ChatConstance.SC_CONNECT : {
 //						100|접속자대화명.
 						String tmp = st.nextToken();
@@ -361,13 +364,13 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 						
 					}break;
 					case ChatConstance.SC_PAPER : {
-//						300|보낸사람대화명|메세지
+//						300|보낸사람|메세지
 						//메세지 받음
 						String from = st.nextToken();
 						String tmp = st.nextToken();
 						paper.from.setText(from);
 						paper.to.setText(myid);
-						paper.letter.setText(tmp);
+						paper.letter.setText(tmp.replace("/n/", "\n"));
 						viewMessage(from+"에게 메세지 받음 : "+tmp);
 						//밑에 버튼을 답장으로
 						paper.card.show(paper.cardp, "answer");
@@ -381,7 +384,7 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 						int i = chat.listData.indexOf(oldname);
 						chat.listData.set(i, newname);
 						chat.list.setListData(chat.listData);
-						viewMessage(oldname+"은 "+newname+"으로 변경되었습니다.");
+						viewMessage("[알림]"+oldname+"은 "+newname+"으로 변경되었습니다.");
 						
 					}break;
 					case ChatConstance.SC_DISCONNECT : {
@@ -405,6 +408,7 @@ public class Login extends JFrame implements ActionListener,Runnable,ListSelecti
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
+				break;
 			}
 		}
 		
